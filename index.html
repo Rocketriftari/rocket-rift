@@ -1,11 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Rocket Rift</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Rocket Rift</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030712;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+#game{position:fixed;inset:0;overflow:hidden;color:white;background:linear-gradient(#050817,#081a31 55%,#030711);touch-action:none}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.screen{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(1,4,12,.62)}
+.hidden{display:none!important}.card{width:100%;max-width:390px;padding:25px 20px;text-align:center;border-radius:28px;background:linear-gradient(160deg,#111f39,#050c1b);border:1px solid rgba(121,178,255,.2)}
+.logo{font-size:66px}.title{font-size:39px;font-weight:900;letter-spacing:3px}.title span{display:block;font-size:46px;letter-spacing:8px;color:#8b8cff}
+.tag{margin:12px;font-size:10px;letter-spacing:3px;color:#84b8ff;font-weight:900}
+button{width:100%;margin-top:10px;padding:15px;border:0;border-radius:999px;background:linear-gradient(90deg,#5ca9ff,#9468ff);color:white;font-size:16px;font-weight:900}
+.secondary{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14)}
+#hud{position:absolute;z-index:5;top:20px;width:100%;text-align:center;pointer-events:none}#score{font-size:46px;font-weight:900}#coins{position:absolute;left:15px;top:10px;background:#0006;padding:8px 12px;border-radius:18px}
+#best{font-size:12px;opacity:.65}.row{display:flex;align-items:center;gap:10px;padding:10px;margin:8px 0;border-radius:16px;background:#ffffff0d}.emoji{font-size:34px;width:48px}.info{flex:1;text-align:left}.small{font-size:12px;opacity:.65}.row button{width:auto;margin:0;padding:9px 12px;font-size:12px}
+.progress{height:13px;background:#ffffff17;border-radius:99px;overflow:hidden}.bar{height:100%;width:0;background:linear-gradient(90deg,#55c6ff,#9d65ff)}
+</style>
 </head>
-<body style="background:#050817;color:white;text-align:center;font-family:Arial;padding-top:100px;">
-  <h1>🚀 ROCKET RIFT</h1>
-  <p>TEST ERFOLGREICH</p>
-</body>
-</html>
+<body><div id="game"><canvas id="c"></canvas>
+<div id="hud"><div id="coins">🪙 0</div><div id="score">0</div><div id="best">BEST 0</div></div>
+<div id="menu" class="screen"><div class="card"><div id="menuRocket" class="logo">🚀</div><div class="title">ROCKET<span>RIFT</span></div><div class="tag">FLY • DODGE • SURVIVE</div><p>Fliege durch den Rift, sammle Coins und stelle einen neuen Highscore auf.</p><button id="start">🚀 START</button><button id="hangar" class="secondary">🎨 HANGAR</button><button id="mission" class="secondary">🎯 MISSION</button></div></div>
+<div id="shop" class="screen hidden"><div class="card"><h1>🛸 Hangar</h1><p>Guthaben: <b id="shopCoins">0</b> 🪙</p><div id="skins"></div><button id="shopBack" class="secondary">← ZURÜCK</button></div></div>
+<div id="missions" class="screen hidden"><div class="card"><h1>🎯 Mission</h1><p>Fliege durch <b>10 Tore</b></p><div class="progress"><div id="bar" class="bar"></div></div><p id="progress">0 / 10</p><p>Belohnung: <b>10 🪙</b></p><button id="claim" class="hidden">🎁 BELOHNUNG HOLEN</button><button id="missionBack" class="secondary">← ZURÜCK</button></div></div>
+<div id="over" class="screen hidden"><div class="card"><h1>💥 Rift verloren</h1><p id="result"></p><p id="earned"></p><button id="revive">❤️ REVIVE</button><button id="again">🔄 NOCHMAL</button><button id="home" class="secondary">🏠 MENÜ</button></div></div>
+<div id="countdown" class="screen hidden"><div style="font-size:100px;font-weight:900" id="count">3</div></div>
+</div>
+<script>
+const $=x=>document.getElementById(x),c=$("c"),x=c.getContext("2d");
+let W,H,r,obs=[],drops=[],score=0,best=0,coins=0,runCoins=0,running=false,last=0,timer=0,revived=false,mission=0,done=false,claimed=false,skin=0;
+const skins=[["Rift One","🚀",0,true],["UFO","🛸",5,false],["Sky Jet","✈️",12,false],["Rift Alien","👾",25,false],["Space Dragon","🐉",50,false]];
+function size(){let a=c.getBoundingClientRect();W=a.width;H=a.height;c.width=W;c.height=H}
+function ui(){$("score").textContent=score;$("best").textContent="BEST "+best;$("coins").textContent="🪙 "+coins;$("shopCoins").textContent=coins;$("menuRocket").textContent=skins[skin][1];$("progress").textContent=Math.min(mission,10)+" / 10";$("bar").style.width=Math.min(mission*10,100)+"%";$("claim").classList.toggle("hidden",!done||claimed)}
+function hide(){["menu","shop","missions","over","countdown"].forEach(i=>$(i).classList.add("hidden"))}
+function start(){size();r={x:W*.25,y:H*.5,v:0,s:14};obs=[];drops=[];score=0;runCoins=0;timer=0;revived=false;hide();running=true;last=performance.now();ui();requestAnimationFrame(loop)}
+function flap(){if(running)r.v=-420}
+function obstacle(){let gap=Math.max(135,195-score*1.4),top=55+Math.random()*(H-gap-110),o={x:W+30,w:56,top,bottom:top+gap,passed:false};obs.push(o);if(Math.random()<.72)drops.push({x:o.x+116,y:top+gap/2,r:12})}
+function end(){if(!running)return;running=false;best=Math.max(best,score);ui();$("result").textContent="Score: "+score+" • Best: "+best;$("earned").textContent="+"+runCoins+" 🪙";$("revive").classList.toggle("hidden",revived);$("over").classList.remove("hidden")}
+function update(d){r.v+=950*d;r.y+=r.v*d;timer+=d;if(timer>=Math.max(.88,1.35-score*.01)){timer=0;obstacle()}let sp=180+Math.min(score*4,140);for(let o of obs){o.x-=sp*d;if(!o.passed&&o.x+o.w<r.x){o.passed=true;score++;if(!done&&!claimed){mission++;if(mission>=10){mission=10;done=true}}ui()}if(r.x+r.s>o.x&&r.x-r.s<o.x+o.w&&(r.y-r.s<o.top||r.y+r.s>o.bottom)){end();return}}for(let q of drops){q.x-=sp*d;if(Math.hypot(r.x-q.x,r.y-q.y)<r.s+q.r){q.dead=true;coins++;runCoins++;ui()}}obs=obs.filter(o=>o.x+o.w>-20);drops=drops.filter(q=>q.x>-30&&!q.dead);if(r.y-r.s<=0||r.y+r.s>=H)end()}
+function draw(){let g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"#050817");g.addColorStop(.55,"#0a2945");g.addColorStop(1,"#030711");x.fillStyle=g;x.fillRect(0,0,W,H);x.fillStyle="white";for(let i=0;i<55;i++)x.fillRect((i*83+17)%W,(i*137+29)%H,1,1);for(let o of obs){x.fillStyle="#486482";x.fillRect(o.x,0,o.w,o.top);x.fillRect(o.x,o.bottom,o.w,H-o.bottom);x.fillStyle="#7ac4ff";x.fillRect(o.x-4,o.top-7,o.w+8,7);x.fillRect(o.x-4,o.bottom,o.w+8,7)}for(let q of drops){x.beginPath();x.arc(q.x,q.y,q.r,0,Math.PI*2);x.fillStyle="#ffd54a";x.fill()}if(r){x.save();x.translate(r.x,r.y);x.rotate(Math.max(-.4,Math.min(.5,r.v/700)));x.font="32px Arial";x.textAlign="center";x.textBaseline="middle";x.fillText(skins[skin][1],0,0);x.restore()}}
+function loop(t){if(!running)return;let d=Math.min((t-last)/1000,.033);last=t;update(d);if(running){draw();requestAnimationFrame(loop)}}
+function render(){let e=$("skins");e.innerHTML="";skins.forEach((s,i)=>{let d=document.createElement("div");d.className="row";d.innerHTML='<div class="emoji">'+s[1]+'</div><div class="info"><b>'+s[0]+'</b><div class="small">'+(s[3]?"Freigeschaltet":s[2]+" 🪙")+'</div></div>';let b=document.createElement("button");b.textContent=skin===i?"AKTIV":s[3]?"WÄHLEN":"KAUFEN";b.onclick=()=>{if(s[3])skin=i;else if(coins>=s[2]){coins-=s[2];s[3]=true;skin=i}ui();render()};d.appendChild(b);e.appendChild(d)})}
+$("start").onclick=()=>{start();setTimeout(flap,100)};$("again").onclick=()=>{start();setTimeout(flap,100)};$("hangar").onclick=()=>{$("menu").classList.add("hidden");$("shop").classList.remove("hidden");render()};$("shopBack").onclick=()=>{$("shop").classList.add("hidden");$("menu").classList.remove("hidden")};$("mission").onclick=()=>{$("menu").classList.add("hidden");$("missions").classList.remove("hidden");ui()};$("missionBack").onclick=()=>{$("missions").classList.add("hidden");$("menu").classList.remove("hidden")};$("claim").onclick=()=>{if(done&&!claimed){coins+=10;claimed=true;ui()}};$("home").onclick=()=>{$("over").classList.add("hidden");$("menu").classList.remove("hidden")};
+$("revive").onclick=()=>{if(revived)return;revived=true;$("over").classList.add("hidden");$("countdown").classList.remove("hidden");let n=3;$("count").textContent=n;let z=setInterval(()=>{n--;$("count").textContent=n;if(n<=0){clearInterval(z);$("countdown").classList.add("hidden");r.y=H*.5;r.v=0;obs=obs.filter(o=>o.x>r.x+100);running=true;last=performance.now();requestAnimationFrame(loop)}},700)};
+c.addEventListener("pointerdown",e=>{e.preventDefault();flap()});window.addEventListener("resize",size);size();ui();
+</script></body></html>
